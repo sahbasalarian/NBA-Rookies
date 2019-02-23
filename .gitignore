@@ -1,3 +1,8 @@
+.vscode/*
+data/*
+data
+__pycache__/
+
 # History files
 .Rhistory
 .Rapp.history
