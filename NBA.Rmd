@@ -1,0 +1,165 @@
+---
+title: "NBA(1)"
+author: "Sahba Salarian"
+date: '2019-02-22'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+
+#install.packages("faraway")
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(fig.pos = 'H')
+knitr::opts_chunk$set(warning=FALSE)
+knitr::opts_chunk$set(message=FALSE)
+library(xtable)
+options(xtable.comment = FALSE)
+library(knitr)
+library(tidyverse)
+library(ggplot2)
+library(bestglm) 
+library(stargazer)
+library(corrplot)
+library (car)
+library (repr)
+library (MASS)
+library (leaps)
+library(pROC)
+library(ROCR)
+```
+
+#Introduction
+
+The amount of the estrogen hormone as measured in a random sample of 
+11 straight men and in a separate random sample 15 gay males.
+Note this is not the same as a single random sample!
+Our purpose is just to understand how the hormones levels are related in
+two distinct populations.
+
+This data is available in R, faraway::hormone and was discussed in Faraway's 
+book *Extensions of the Linear Model*.
+
+This dataset is of special interest because the data structure is quite
+simple since there are only $p=2$ inputs and more importantly it
+illustrates the case of perfect separation of classes.
+Although this happens quite fairly rarely it is the motivation behind the
+formulation of Support Vector Machines (SVM).
+SVM is a powerful method for solving linear and non-linear regression
+and classification problems with high dimensional data.
+
+Input the data and convert to tibble for nice display:
+
+```{r GETDATA, echo=TRUE}
+NBA1 <-read.csv("/Users/sahba/Dropbox/Data Science/NBA longevity/nba_logreg.csv", header=T, stringsAsFactors=F)
+```
+
+
+
+```{r structure, echo=TRUE}
+str(NBA1)
+```
+
+As the dataset structure shows, the first column includes character variables, the name of athletes played in the league. I will replace the names with unique ID variables as follow:
+
+
+```{r ID }
+#NBA1$Name <- c(as.factor(NBA1$Name))
+#str(NBA1)
+```
+
+## Data engineering
+
+```{r Omit NA , echo = FALSE}
+NBA2 <- na.omit(NBA1)
+```
+
+
+#Train/Test Split:
+
+
+```{r Test&train, echo = FALSE}
+set.seed(798102) 
+split <- sample (3, nrow (NBA2), replace= TRUE, prob = c (0.6, 0.2, 0.2))
+train <- NBA2 [split==1,]
+cv <- NBA2 [split==2,]
+test <- NBA2 [split==3,]
+
+```
+
+
+
+```{r SCATTERPLOT, echo=FALSE, results = "asis", fig.cap = ",,,,,,"}
+#Figure 1
+
+#options(repr.plot.width=6, repr.plot.height=9)
+#scatterplotMatrix(~TARGET_5Yrs+GP+ MIN+ PTS+ FGM+ FGA+ FG.+X3P.Made+ X3PA+ X3P.+FTM+ FT.+OREB +DREB +REB+ AST+ STL+ BLK+ TOV, data = NBA1)
+
+```
+
+The TARGET_5Yrs should be analyzed versus other information for each athlete: GP, MIN, PTS, FGM, FGA, FG.,X3P.Made, X3PA, X3P.,FTM, FTA,FT.,OREB, DREB, REB, AST, STL, BLK, TOV 
+
+
+
+```{r Correlation Matrix, echo=FALSE,fig.caption="Correlation Matrix"}
+M<- cor(train[,-1])
+#install.packages("corrplot")
+#corrplot(M, method="color")
+corrplot(M, type="upper")
+
+```
+
+
+```{r CORRELATIONPLOT2, echo=FALSE, results = "asis", fig.width=20, fig.height=19, fig.cap = ",,,,,,"}
+
+library(ggplot2)
+
+library(GGally)
+
+ggpairs(NBA1[,2:21], aes(color=factor(TARGET_5Yrs), alpha=0.75), lower=list(continuous="smooth"))+ theme_bw()+
+
+labs(title=".......")+
+
+theme(plot.title=element_text(face='bold',color='black',hjust=0.5,size=12))
+
+```
+
+
+
+
+
+
+##Use **glm()** to fit the model
+
+```{r LogFit1, echo=TRUE}
+LogFit1 <- glm(TARGET_5Yrs ~  GP+ MIN+ PTS+ FGM+ FGA+ FG.+X3P.Made+ X3PA+ X3P.+FTM+ FTA+ FT.+OREB +DREB +REB+ AST+ STL+ BLK+ TOV , data=train, family=binomial(link='logit'))
+stargazer (LogFit1, type="latex", title="ANOVA test of the logistic Regresssion ", header = FALSE)
+summary(LogFit1)
+
+```
+```{r Logistic Plot, echo=FALSE,fig.caption="ROC for Logistic"}
+probTE<- predict(LogFit1,cv,type="response")
+test_roc = roc(cv$TARGET_5Yrs~probTE, plot = TRUE, print.auc = TRUE,main="ROC for GLM")
+
+```
+
+
+
+
+
+
+
+
+
+
+#Decision Boundary
+
+
+
+```{r, echo=TRUE}
+hdata %>%
+ ggplot(aes(x=an, y=estrogen)) +
+ geom_point(aes(colour=orientation), size=3) +
+ geom_abline(intercept=-0.93649, slope=1.1185) +
+ geom_abline(intercept=-0.4592, slope=0.8769, colour="blue", linetype=2 )
+```
+
