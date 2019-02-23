@@ -30,24 +30,7 @@ library(ROCR)
 
 #Introduction
 
-The amount of the estrogen hormone as measured in a random sample of 
-11 straight men and in a separate random sample 15 gay males.
-Note this is not the same as a single random sample!
-Our purpose is just to understand how the hormones levels are related in
-two distinct populations.
 
-This data is available in R, faraway::hormone and was discussed in Faraway's 
-book *Extensions of the Linear Model*.
-
-This dataset is of special interest because the data structure is quite
-simple since there are only $p=2$ inputs and more importantly it
-illustrates the case of perfect separation of classes.
-Although this happens quite fairly rarely it is the motivation behind the
-formulation of Support Vector Machines (SVM).
-SVM is a powerful method for solving linear and non-linear regression
-and classification problems with high dimensional data.
-
-Input the data and convert to tibble for nice display:
 
 ```{r GETDATA, echo=TRUE}
 NBA1 <-read.csv("/Users/sahba/Dropbox/Data Science/NBA longevity/nba_logreg.csv", header=T, stringsAsFactors=F)
@@ -59,7 +42,7 @@ NBA1 <-read.csv("/Users/sahba/Dropbox/Data Science/NBA longevity/nba_logreg.csv"
 str(NBA1)
 ```
 
-As the dataset structure shows, the first column includes character variables, the name of athletes played in the league. I will replace the names with unique ID variables as follow:
+
 
 
 ```{r ID }
