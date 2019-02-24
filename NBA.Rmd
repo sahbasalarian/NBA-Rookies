@@ -7,7 +7,6 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
 
-#install.packages("faraway")
 knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_chunk$set(fig.pos = 'H')
 knitr::opts_chunk$set(warning=FALSE)
@@ -30,24 +29,13 @@ library(ROCR)
 
 #Introduction
 
-
-
 ```{r GETDATA, echo=TRUE}
 NBA1 <-read.csv("/Users/sahba/Dropbox/Data Science/NBA longevity/nba_logreg.csv", header=T, stringsAsFactors=F)
 ```
 
 
-
 ```{r structure, echo=TRUE}
 str(NBA1)
-```
-
-
-
-
-```{r ID }
-#NBA1$Name <- c(as.factor(NBA1$Name))
-#str(NBA1)
 ```
 
 ## Data engineering
@@ -57,7 +45,24 @@ NBA2 <- na.omit(NBA1)
 ```
 
 
-#Train/Test Split:
+#Train/CV/Test Split:
+
+Just because a learning algorithm fits a training set well, that does not mean it is a good hypothesis. It could over fit and as a result your predictions on the test set would be poor. The error of your hypothesis as measured on the data set with which you trained the parameters will be lower than the error on any other data set.
+
+Given many models with different polynomial degrees, we can use a systematic approach to identify the 'best' function. In order to choose the model of your hypothesis, you can test each degree of polynomial and look at the error result.
+
+One way to break down our dataset into the three sets is:
+
+Training set: 60%
+Cross validation set: 20%
+Test set: 20%
+We can now calculate three separate error values for the three different sets using the following method:
+
+Optimize the parameters in Θ using the training set for each polynomial degree.
+Find the polynomial degree d with the least error using the cross validation set.
+Estimate the generalization error using the test set with 
+, (d = theta from polynomial with lower error);
+This way, the degree of the polynomial d has not been trained using the test set.
 
 
 ```{r Test&train, echo = FALSE}
@@ -69,6 +74,9 @@ test <- NBA2 [split==3,]
 
 ```
 
+```{r}
+str(train)
+```
 
 
 ```{r SCATTERPLOT, echo=FALSE, results = "asis", fig.cap = ",,,,,,"}
@@ -85,6 +93,7 @@ The TARGET_5Yrs should be analyzed versus other information for each athlete: GP
 
 ```{r Correlation Matrix, echo=FALSE,fig.caption="Correlation Matrix"}
 M<- cor(train[,-1])
+#Figure 1
 #install.packages("corrplot")
 #corrplot(M, method="color")
 corrplot(M, type="upper")
@@ -92,7 +101,7 @@ corrplot(M, type="upper")
 ```
 
 
-```{r CORRELATIONPLOT2, echo=FALSE, results = "asis", fig.width=20, fig.height=19, fig.cap = ",,,,,,"}
+```{r Scatter-CORRELATION-PLOT2, echo=FALSE, results = "asis", fig.width=20, fig.height=19, fig.cap = ",,,,,,"}
 
 library(ggplot2)
 
@@ -107,10 +116,6 @@ theme(plot.title=element_text(face='bold',color='black',hjust=0.5,size=12))
 ```
 
 
-
-
-
-
 ##Use **glm()** to fit the model
 
 ```{r LogFit1, echo=TRUE}
@@ -119,30 +124,143 @@ stargazer (LogFit1, type="latex", title="ANOVA test of the logistic Regresssion 
 summary(LogFit1)
 
 ```
+
+```{r}
+#turn probabilities into classess and look at their frequencies:
+p <- predict(LogFit1, cv, type="response")
+p_class <- ifelse(p > .50, "longevity >= 5Yrs", "longevity <5Yrs")
+table(p_class)
+```
+```{r Logistic confusion Matrix}
+# 2 way frequency table
+table(p_class, cv[["TARGET_5Yrs"]])
+```
+
+
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
 ```{r Logistic Plot, echo=FALSE,fig.caption="ROC for Logistic"}
 probTE<- predict(LogFit1,cv,type="response")
+test_roc = roc(cv$TARGET_5Yrs~probTE, plot = TRUE, print.auc = TRUE,main="ROC for GLM")
+```
+
+
+
+```{r BACkWARD-AIC, echo=FALSE, results = "hide"}
+backwardAIC <- step(LogFit1, direction = "backward")
+```
+
+The AIC-Backard method features: 
+- X3P.    
+- FGA      
+- X3PA      
+- FT.       
+- FG.      
+- X3P.Made  
+- MIN       
+- BLK       
+- AST       
+- DREB      
+- REB       
+- GP        
+
+
+```{r BACKWARD_BIC, echo=FALSE, results = "hide" }
+backwardBIC <- step (LogFit1, k=log(nrow(train[,2:21])), direction = "backward")
+```
+
+The BIC-Backward method decreased the features to 3, GP , DREB , REB but with AIC=901.29.
+
+
+
+```{r BESTSUBSET, echo=FALSE, results= "hide"}
+
+(BestAIC <- bestglm(train[,2:21], family=gaussian, IC="AIC")$BestModel)
+(BestBIC <- bestglm (train[,2:21] , family=gaussian,  IC="BIC")$BestModel)
+AIC(BestAIC)
+BIC (BestBIC)
+```
+The BestGLM method decreased the features but with AIC= 924 and 952, which are larger than the first backward_AIC model applied. So the backward_AIC is the one applied.
+
+#new GLm based on the model developed from backward_AIC:
+
+```{r}
+LogFit2 <- glm(TARGET_5Yrs ~ GP + MIN + FGA + FG. + X3P.Made + X3PA + X3P. + 
+    FT. + DREB + REB + AST + BLK , data=train[,2:21], family=binomial(link='logit'))
+stargazer (LogFit2, type="latex", title="ANOVA test of the logistic Regresssion ", header = FALSE)
+summary(LogFit2)
+
+```
+
+
+#ROC for best backward_AIC model:
+
+```{r Best AIC-Logistic Plot, echo=FALSE,fig.caption="ROC for BestLogistic"}
+probTE<- predict(LogFit2,cv,type="response")
+test_roc = roc(cv$TARGET_5Yrs~probTE, plot = TRUE, print.auc = TRUE,main="ROC for Best AIC model")
+```
+
+
+
+
+# SVMfit
+
+```{r}
+#install.package("e1071")
+library(e1071)
+svmfit <- svm (TARGET_5Yrs ~ GP+ MIN+ PTS+ FGM+ FGA+ FG.+X3P.Made+ X3PA+ X3P.+FTM+ FTA+ FT.+OREB +DREB +REB+ AST+ STL+ BLK+ TOV, data = train, kernel="linear" , gamma=0.05, cost =10, scale = TRUE, probability = TRUE)
+print (svmfit)
+```
+```{r}
+prob <- predict(svmfit, cv, probability = TRUE)
+plot(svmfit, train, TARGET_5Yrs ~ GP)
+```
+
+
+
+```{r}
+svmfit$type
+```
+
+
+```{r SVM Plot, echo=FALSE,fig.caption="ROC for SVM"}
+probTE<- predict(svmfit,cv,type="response")
 test_roc = roc(cv$TARGET_5Yrs~probTE, plot = TRUE, print.auc = TRUE,main="ROC for GLM")
 
 ```
 
+#tunning SVM
+
+#cross validation ba caret:
+
+#Confusion Matrix
 
 
 
-
-
-
-
-
-
-#Decision Boundary
-
-
-
-```{r, echo=TRUE}
-hdata %>%
- ggplot(aes(x=an, y=estrogen)) +
- geom_point(aes(colour=orientation), size=3) +
- geom_abline(intercept=-0.93649, slope=1.1185) +
- geom_abline(intercept=-0.4592, slope=0.8769, colour="blue", linetype=2 )
+```{r KNN 1, message=FALSE, warning=FALSE,echo=FALSE,results="asis"}
+out5<- table(knn.pred,fTE)
+outx5 <- xtable(out5, caption="KNN Confusion Matrix for $K=1$")
+print(outx5, caption.placement="top")
 ```
+
+
+
+
+#Decision Boundary Logistic & others (probably cannot be drawn dur to large number of features)
+
+#learning curve
+
+
+
 
