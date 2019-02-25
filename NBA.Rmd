@@ -1,7 +1,7 @@
 ---
-title: "NBA(1)"
+title: "NBA"
 author: "Sahba Salarian"
-date: '2019-02-22'
+date: 'Feb. 2019'
 output: pdf_document
 ---
 
@@ -19,33 +19,90 @@ library(ggplot2)
 library(bestglm) 
 library(stargazer)
 library(corrplot)
-library (car)
-library (repr)
-library (MASS)
-library (leaps)
+library(car)
+library(repr)
+library(MASS)
+library(leaps)
 library(pROC)
 library(ROCR)
+library(caret)
+library(kernlab)
+library(e1071)
+library(GGally)
 ```
 
 #Introduction
 
+The National Basketball Association (NBA) is a men's professional basketball league in North America. It is composed of 30 teams, 29 teams in the United States and 1 team in Canada. It is widely considered to be the premier men's professional basketball league in the world. 
+
+The NBA is considered one of the four major professional sports leagues in the United States and Canada. The NBA players are the world's best paid athletes by average annual salary per player, among which are Michael Jordan, Kobe Bryant, LeBron James, Kareem Abdul-Jabbar, etc. Considering the huge prevelage gained by these athletes, I find it interesting to invetigate the career longevity of NBA players in the league based on their athlectic performance in the field. 
+
+In this project, the player's career length is devided into two categories of more/less than 5 years, associated with output values of 1/0, respectively. 
+
+##DATA EXPLANATION
+
+The data set provides the information about the field performance of each player of NBA, from 1980 to 2016. It consists of 1340 observations with 21 variables. The values for each variable except for the career longevity is calculated as mean per game during the associated rookie year. 
+
+The original source of the dataset is the official website for the National Bascketbal Association (www.NBA.com) and the current dataset was retrieved from the data.world repository for data analysis and competition.
+
+The list of all the variables are showin in Table. 1.
+
+
+###Attribute Information
+\begin{table}[h!]
+	\begin{tabular}{ c c    }
+		\hline\hline
+			\centering
+		 Column Names& Explanation   \\
+		\hline
+		name & ASCII subject name and recording number\\ 
+Name  & Name \\
+GP    & Games Played \\
+MIN   & Minutes Played \\
+PTS   & Points Per Game \\
+FGM   & Field Goals Made \\
+FGA   & Field Goals Attempts \\
+FG.   & Field Goals Percent \\
+X3P.Made & 3_Points Made \\
+X3PA  & 3_Points Attempts\\ 
+X3P.  & 3_Points Attempts Percentage\\ 
+FTM   & Free Throw Made \\
+FTA   & Free throw Attempts \\
+FT.   & Free throw Percenrage \\
+OREB  & Offensive Rebounds\\
+DREB  & Defenive Rebounds\\
+REB   & Rebounds\\
+AST   & Assists\\
+STL   & Steals\\
+BLK   & Blocks\\
+TOV   & Turnovers\\
+TARGET_5Yrs & Outcome=1(career length>=5 yrs),Outcome=0(career length<5)\\ 
+		\hline
+	\end{tabular}
+	\caption{Attribute Information}
+	\label{tab1}
+\end{table}
+
+The TARGET_5Yrs should be analyzed as a binary class, versus other variables for each athlete: GP, MIN, PTS, FGM, FGA, FG.,X3P.Made, X3PA, X3P.,FTM, FTA,FT.,OREB, DREB, REB, AST, STL, BLK, TOV. 
+
 ```{r GETDATA, echo=TRUE}
-NBA1 <-read.csv("/Users/sahba/Dropbox/Data Science/NBA longevity/nba_logreg.csv", header=T, stringsAsFactors=F)
+df <-read.csv("/Users/sahba/Dropbox/Data Science/NBA longevity/nba_logreg.csv", header=T, stringsAsFactors=F)
+str(df)
 ```
 
+## Data engineering : 
 
-```{r structure, echo=TRUE}
-str(NBA1)
-```
-
-## Data engineering
+In this stage the NA values of the data set has been detedcted and the rows with such values are omitted from the data set. 
 
 ```{r Omit NA , echo = FALSE}
-NBA2 <- na.omit(NBA1)
+df <- na.omit(df)
+#creating a data set without names:
+df <- df[,2:21]
+str(df)
 ```
 
 
-#Train/CV/Test Split:
+#Train/Test Split:
 
 Just because a learning algorithm fits a training set well, that does not mean it is a good hypothesis. It could over fit and as a result your predictions on the test set would be poor. The error of your hypothesis as measured on the data set with which you trained the parameters will be lower than the error on any other data set.
 
@@ -65,201 +122,146 @@ Estimate the generalization error using the test set with
 This way, the degree of the polynomial d has not been trained using the test set.
 
 
-```{r Test&train, echo = FALSE}
+```{r test&cv&train, echo = FALSE}
 set.seed(798102) 
-split <- sample (3, nrow (NBA2), replace= TRUE, prob = c (0.6, 0.2, 0.2))
-train <- NBA2 [split==1,]
-cv <- NBA2 [split==2,]
-test <- NBA2 [split==3,]
-
-```
-
-```{r}
-str(train)
+split <- sample (2, nrow (df), replace= TRUE, prob = c (0.7, 0.3))
+train <- df [split==1,]
+test <- df [split==2,]
 ```
 
 
-```{r SCATTERPLOT, echo=FALSE, results = "asis", fig.cap = ",,,,,,"}
-#Figure 1
-
-#options(repr.plot.width=6, repr.plot.height=9)
-#scatterplotMatrix(~TARGET_5Yrs+GP+ MIN+ PTS+ FGM+ FGA+ FG.+X3P.Made+ X3PA+ X3P.+FTM+ FT.+OREB +DREB +REB+ AST+ STL+ BLK+ TOV, data = NBA1)
-
-```
-
-The TARGET_5Yrs should be analyzed versus other information for each athlete: GP, MIN, PTS, FGM, FGA, FG.,X3P.Made, X3PA, X3P.,FTM, FTA,FT.,OREB, DREB, REB, AST, STL, BLK, TOV 
-
-
+At the very first step, because of importance, the correlation matrix for the predictors were plotted to have a better understatnding about this dataset.Since in fitting the logistic regression or regression model, existing any collinearity between predictors lead to poor fitting.
 
 ```{r Correlation Matrix, echo=FALSE,fig.caption="Correlation Matrix"}
-M<- cor(train[,-1])
+correlationMatrix<- cor(train[,-1])
 #Figure 1
-#install.packages("corrplot")
-#corrplot(M, method="color")
-corrplot(M, type="upper")
-
+corrplot(correlationMatrix, type="lower")
 ```
 
 
 ```{r Scatter-CORRELATION-PLOT2, echo=FALSE, results = "asis", fig.width=20, fig.height=19, fig.cap = ",,,,,,"}
-
-library(ggplot2)
-
-library(GGally)
-
-ggpairs(NBA1[,2:21], aes(color=factor(TARGET_5Yrs), alpha=0.75), lower=list(continuous="smooth"))+ theme_bw()+
-
-labs(title=".......")+
-
-theme(plot.title=element_text(face='bold',color='black',hjust=0.5,size=12))
-
+#Figure 2
+#ggpairs(df, aes(color=factor(TARGET_5Yrs), alpha=0.75), lower=list(continuous="smooth"))+ 
+#  theme_bw()+
+#  labs(title=".......")+
+#  theme(plot.title=element_text(face='bold',color='black',hjust=0.5,size=12))
 ```
 
+## Use caret for training machine learning models
 
-##Use **glm()** to fit the model
+##Use GLM to fit the model
 
-```{r LogFit1, echo=TRUE}
-LogFit1 <- glm(TARGET_5Yrs ~  GP+ MIN+ PTS+ FGM+ FGA+ FG.+X3P.Made+ X3PA+ X3P.+FTM+ FTA+ FT.+OREB +DREB +REB+ AST+ STL+ BLK+ TOV , data=train, family=binomial(link='logit'))
-stargazer (LogFit1, type="latex", title="ANOVA test of the logistic Regresssion ", header = FALSE)
-summary(LogFit1)
-
+```{r caret initialization}
+#caret default
+caretControl <- trainControl(method = "boot",number = 25, classProbs =  TRUE)
 ```
+
 
 ```{r}
+library(plyr)
+train$TARGET_5Yrs <- revalue(as.factor(train$TARGET_5Yrs), c("0"="zero", "1"="one"))
+test$TARGET_5Yrs <- revalue(as.factor(test$TARGET_5Yrs), c("0"="zero", "1"="one"))
+#mapvalues(train$TARGET_5Yrs, from = c("0", "1"), to = c("zero", "one"))
+levels(as.factor(train$TARGET_5Yrs))
+levels(as.factor(test$TARGET_5Yrs))
+```
+
+
+
+```{r trian GLM}
+set.seed(3233)
+modelGLM <- train(as.factor(TARGET_5Yrs)~., data = train, method = "glm",
+                 trControl=caretControl)
+summary(modelGLM)
+modelGLM
+```
+
+
+```{r GLM Confusion Matrix}
 #turn probabilities into classess and look at their frequencies:
-p <- predict(LogFit1, cv, type="response")
-p_class <- ifelse(p > .50, "longevity >= 5Yrs", "longevity <5Yrs")
-table(p_class)
-```
-```{r Logistic confusion Matrix}
-# 2 way frequency table
-table(p_class, cv[["TARGET_5Yrs"]])
+p_modelGLM <- predict(modelGLM, test, type="prob")
+p_ClassGLM <- predict(modelGLM, test)
+confusionMatrix(p_ClassGLM, factor(test$TARGET_5Yrs))
 ```
 
+
+##Use AIC
+
+
+```{r AIC}
+set.seed(3233)
+modelAIC <- train(factor(TARGET_5Yrs)~., data = train, method = "glmStepAIC",
+                 trControl=caretControl)
+#summary(modelAIC)
+#modelAIC
+```
+
+
+```{r AIC confusion}
+#turn probabilities into classess and look at their frequencies:
+p_modelAIC <- predict(modelAIC, test, type = "prob")
+p_ClassAIC <- predict(modelGLM, test)
+confusionMatrix(p_ClassAIC, factor(test$TARGET_5Yrs))
+```
+
+
+##SVM
+##SVMLinear
+```{r trian SVM Linear}
+set.seed(3233)
+modelSVMLinear <- train(factor(TARGET_5Yrs)~., data = train, method = "svmLinear",
+                 trControl=caretControl, Probs =  TRUE)
+summary(modelSVMLinear)
+modelSVMLinear
+```
 
 
 ```{r}
-
+p_modelSVMLinear <- predict(modelSVMLinear, test, "prob")
+p_ClassSVMLinear <- predict(modelSVMLinear, test)
+confusionMatrix(p_ClassSVMLinear, factor(test$TARGET_5Yrs))
 ```
 
 
-
-
-
-
-
-
-
-```{r Logistic Plot, echo=FALSE,fig.caption="ROC for Logistic"}
-probTE<- predict(LogFit1,cv,type="response")
-test_roc = roc(cv$TARGET_5Yrs~probTE, plot = TRUE, print.auc = TRUE,main="ROC for GLM")
+```{r trian SVM Radial}
+set.seed(3233)
+modelSVMRadial <- train(factor(TARGET_5Yrs)~., data = train, method = "svmRadial",
+                 trControl=caretControl)
+summary(modelSVMRadial)
+modelSVMRadial
 ```
-
-
-
-```{r BACkWARD-AIC, echo=FALSE, results = "hide"}
-backwardAIC <- step(LogFit1, direction = "backward")
-```
-
-The AIC-Backard method features: 
-- X3P.    
-- FGA      
-- X3PA      
-- FT.       
-- FG.      
-- X3P.Made  
-- MIN       
-- BLK       
-- AST       
-- DREB      
-- REB       
-- GP        
-
-
-```{r BACKWARD_BIC, echo=FALSE, results = "hide" }
-backwardBIC <- step (LogFit1, k=log(nrow(train[,2:21])), direction = "backward")
-```
-
-The BIC-Backward method decreased the features to 3, GP , DREB , REB but with AIC=901.29.
-
-
-
-```{r BESTSUBSET, echo=FALSE, results= "hide"}
-
-(BestAIC <- bestglm(train[,2:21], family=gaussian, IC="AIC")$BestModel)
-(BestBIC <- bestglm (train[,2:21] , family=gaussian,  IC="BIC")$BestModel)
-AIC(BestAIC)
-BIC (BestBIC)
-```
-The BestGLM method decreased the features but with AIC= 924 and 952, which are larger than the first backward_AIC model applied. So the backward_AIC is the one applied.
-
-#new GLm based on the model developed from backward_AIC:
 
 ```{r}
-LogFit2 <- glm(TARGET_5Yrs ~ GP + MIN + FGA + FG. + X3P.Made + X3PA + X3P. + 
-    FT. + DREB + REB + AST + BLK , data=train[,2:21], family=binomial(link='logit'))
-stargazer (LogFit2, type="latex", title="ANOVA test of the logistic Regresssion ", header = FALSE)
-summary(LogFit2)
-
+p_modelSVMRadial <- predict(modelSVMRadial, test, "prob")
+p_ClasslSVMRadial <- predict(modelSVMRadial, test)
+confusionMatrix(p_ClasslSVMRadial, factor(test$TARGET_5Yrs))
 ```
 
 
-#ROC for best backward_AIC model:
+```{r COMPARISON GLM, AIC, SVMlinear and SVMradial}
+comparison<-resamples(list(GLM=modelGLM, AIC=modelAIC, SVMLinear=modelSVMLinear, SVMRadial=modelSVMRadial))
+summary(comparison)
+```
 
-```{r Best AIC-Logistic Plot, echo=FALSE,fig.caption="ROC for BestLogistic"}
-probTE<- predict(LogFit2,cv,type="response")
-test_roc = roc(cv$TARGET_5Yrs~probTE, plot = TRUE, print.auc = TRUE,main="ROC for Best AIC model")
+```{r ROC for GLM}
+ROC_GLM <- roc(factor(test$TARGET_5Yrs)~p_modelGLM[,2], plot = TRUE, print.auc = TRUE,main="ROC for GLM")
 ```
 
 
-
-
-# SVMfit
-
-```{r}
-#install.package("e1071")
-library(e1071)
-svmfit <- svm (TARGET_5Yrs ~ GP+ MIN+ PTS+ FGM+ FGA+ FG.+X3P.Made+ X3PA+ X3P.+FTM+ FTA+ FT.+OREB +DREB +REB+ AST+ STL+ BLK+ TOV, data = train, kernel="linear" , gamma=0.05, cost =10, scale = TRUE, probability = TRUE)
-print (svmfit)
-```
-```{r}
-prob <- predict(svmfit, cv, probability = TRUE)
-plot(svmfit, train, TARGET_5Yrs ~ GP)
+```{r ROC for AIC}
+ROC_AIC <- roc(factor(test$TARGET_5Yrs)~p_modelAIC[,2], plot = TRUE, print.auc = TRUE,main="ROC for AIC")
 ```
 
 
-
-```{r}
-svmfit$type
+```{r ROC for SVMlinear}
+ROC_SVMlinear<- roc(factor(test$TARGET_5Yrs)~p_modelSVMLinear[,2], plot = TRUE, print.auc = TRUE, main="ROC for SVM withlinear kernel")
 ```
-
-
-```{r SVM Plot, echo=FALSE,fig.caption="ROC for SVM"}
-probTE<- predict(svmfit,cv,type="response")
-test_roc = roc(cv$TARGET_5Yrs~probTE, plot = TRUE, print.auc = TRUE,main="ROC for GLM")
-
-```
-
-#tunning SVM
-
-#cross validation ba caret:
-
-#Confusion Matrix
-
-
-
-```{r KNN 1, message=FALSE, warning=FALSE,echo=FALSE,results="asis"}
-out5<- table(knn.pred,fTE)
-outx5 <- xtable(out5, caption="KNN Confusion Matrix for $K=1$")
-print(outx5, caption.placement="top")
+```{r ROC for SVMRadial}
+ROC_SVMRadial<- roc(factor(test$TARGET_5Yrs)~p_modelSVMRadial[,2], plot = TRUE, print.auc = TRUE, main="ROC for SVM with radial kernel")
 ```
 
 
 
-
-#Decision Boundary Logistic & others (probably cannot be drawn dur to large number of features)
-
-#learning curve
 
 
 
