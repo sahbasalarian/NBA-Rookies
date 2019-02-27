@@ -1,58 +1,70 @@
 ---
 title: "NBA"
 author: "Sahba Salarian"
-date: 'Feb. 2019'
+date: "Feb. 2019"
 output: pdf_document
+  
 ---
 
-```{r setup, include=FALSE}
-
+```{r setup, include=FALSE, echo=FALSE}
+library(float)
 knitr::opts_chunk$set(echo = TRUE)
-knitr::opts_chunk$set(fig.pos = 'H')
+#knitr::opts_chunk$set(fig.pos='H')
 knitr::opts_chunk$set(warning=FALSE)
 knitr::opts_chunk$set(message=FALSE)
+library(knitr)
 library(xtable)
 options(xtable.comment = FALSE)
-library(knitr)
 library(tidyverse)
+library(plyr)
 library(ggplot2)
-library(bestglm) 
+library(GGally)
 library(stargazer)
 library(corrplot)
 library(car)
 library(repr)
 library(MASS)
 library(leaps)
-library(pROC)
-library(ROCR)
 library(caret)
 library(kernlab)
 library(e1071)
-library(GGally)
+library(pROC)
+library(ROCR)
 ```
 
-#Introduction
+##Introduction
 
-The National Basketball Association (NBA) is a men's professional basketball league in North America. It is composed of 30 teams, 29 teams in the United States and 1 team in Canada. It is widely considered to be the premier men's professional basketball league in the world. 
+The National Basketball Association (NBA) is a men's professional basketball league in North America. It is composed of 30 teams among which 29 teams are in the United States and 1 team in Canada. It is widely considered to be the premier men's professional basketball league in the world. 
 
-The NBA is considered one of the four major professional sports leagues in the United States and Canada. The NBA players are the world's best paid athletes by average annual salary per player, among which are Michael Jordan, Kobe Bryant, LeBron James, Kareem Abdul-Jabbar, etc. Considering the huge prevelage gained by these athletes, I find it interesting to invetigate the career longevity of NBA players in the league based on their athlectic performance in the field. 
+The NBA is considered one of the four major professional sports leagues in the United States and Canada. The NBA players are the world's best paid athletes by average annual salary per player, among which are Michael Jordan, Kobe Bryant, LeBron James, Kareem Abdul-Jabbar, etc. Considering the huge prevelage gained by these athletes, it is an interesting project to invetigate the career longevity of NBA players in the league based on their athlectic performance in the field. 
 
-In this project, the player's career length is devided into two categories of more/less than 5 years, associated with output values of 1/0, respectively. 
+In this project, the player's career length is devided into two categories of more or less than 5 years, associated with output values of 1 or 0, respectively. 
 
-##DATA EXPLANATION
+##Data Explanation
 
-The data set provides the information about the field performance of each player of NBA, from 1980 to 2016. It consists of 1340 observations with 21 variables. The values for each variable except for the career longevity is calculated as mean per game during the associated rookie year. 
+The data set provides information about field performance of each player, from 1980 to 2016. It consists of 1340 observations with 21 variables. The values for each variable except for the career longevity is calculated as mean per game during the associated rookie year. 
 
-The original source of the dataset is the official website for the National Bascketbal Association (www.NBA.com) and the current dataset was retrieved from the data.world repository for data analysis and competition.
+The original source of the dataset is the official website for the National Bascketbal Association (www.NBA.com) and the current dataset was retrieved from the data.world repository for data analysis and data competition.
 
-The list of all the variables are showin in Table. 1.
+```{r GETDATA, echo=FALSE}
+df <-read.csv("/Users/sahba/Dropbox/Data Science/NBA longevity/nba_logreg.csv", header=T, stringsAsFactors=F)
+```
 
+The list of all the variables are shown in Table 1.
 
-###Attribute Information
-\begin{table}[h!]
-	\begin{tabular}{ c c    }
+##Dataset Information
+
+```{r data structure, echo = TRUE}
+str(df) 
+```
+
+The TARGET_5Yrs should be analyzed as a binary class, versus other variables for each athlete. The variables are demonstrated in Table 1.
+
+\begin{table}[h]
+\centering
+	\begin{tabular}{ c c }
 		\hline\hline
-			\centering
+			
 		 Column Names& Explanation   \\
 		\hline
 		name & ASCII subject name and recording number\\ 
@@ -63,9 +75,9 @@ PTS   & Points Per Game \\
 FGM   & Field Goals Made \\
 FGA   & Field Goals Attempts \\
 FG.   & Field Goals Percent \\
-X3P.Made & 3_Points Made \\
-X3PA  & 3_Points Attempts\\ 
-X3P.  & 3_Points Attempts Percentage\\ 
+X3P.Made & 3Points Made \\
+X3PA  & 3Points Attempts\\ 
+X3P.  & 3Points Attempts Percentage\\ 
 FTM   & Free Throw Made \\
 FTA   & Free throw Attempts \\
 FT.   & Free throw Percenrage \\
@@ -76,189 +88,320 @@ AST   & Assists\\
 STL   & Steals\\
 BLK   & Blocks\\
 TOV   & Turnovers\\
-TARGET_5Yrs & Outcome=1(career length>=5 yrs),Outcome=0(career length<5)\\ 
+TARGET-5Yrs & Outcome=1(career length>=5 yrs),Outcome=0(career length<5)\\ 
 		\hline
 	\end{tabular}
 	\caption{Attribute Information}
 	\label{tab1}
 \end{table}
 
-The TARGET_5Yrs should be analyzed as a binary class, versus other variables for each athlete: GP, MIN, PTS, FGM, FGA, FG.,X3P.Made, X3PA, X3P.,FTM, FTA,FT.,OREB, DREB, REB, AST, STL, BLK, TOV. 
+\newpage
+## Data Engineering 
 
-```{r GETDATA, echo=TRUE}
-df <-read.csv("/Users/sahba/Dropbox/Data Science/NBA longevity/nba_logreg.csv", header=T, stringsAsFactors=F)
-str(df)
-```
-
-## Data engineering : 
-
-In this stage the NA values of the data set has been detedcted and the rows with such values are omitted from the data set. 
+In this stage the NA values of the data set are detedcted and the rows with such unknown or missing values are omitted from the data set. Moreover, the Name column is also removed from the dataset. 1329 observations and 20 variables are remaining as follows:
 
 ```{r Omit NA , echo = FALSE}
 df <- na.omit(df)
 #creating a data set without names:
 df <- df[,2:21]
-str(df)
 ```
 
 
-#Train/Test Split:
+```{r trimmed data , echo = TRUE}
+str(df)
+```
+##Train \& Test Split:
 
-Just because a learning algorithm fits a training set well, that does not mean it is a good hypothesis. It could over fit and as a result your predictions on the test set would be poor. The error of your hypothesis as measured on the data set with which you trained the parameters will be lower than the error on any other data set.
-
-Given many models with different polynomial degrees, we can use a systematic approach to identify the 'best' function. In order to choose the model of your hypothesis, you can test each degree of polynomial and look at the error result.
-
-One way to break down our dataset into the three sets is:
-
-Training set: 60%
-Cross validation set: 20%
-Test set: 20%
-We can now calculate three separate error values for the three different sets using the following method:
-
-Optimize the parameters in Θ using the training set for each polynomial degree.
-Find the polynomial degree d with the least error using the cross validation set.
-Estimate the generalization error using the test set with 
-, (d = theta from polynomial with lower error);
-This way, the degree of the polynomial d has not been trained using the test set.
+Just because a learning algorithm fits a data set well, does not guarantee that it is a good hypothesis. It could overfit and as a result the predictions on the other data set would be poor. The error of hypothesis as measured on the data set with which we trained the parameters will usually be lower than the errors on any other data set. So for the sake of better evaluation of the model and better prediction analysis the data set is randomly splitted into two separate datasets of "train" and "test", with 70\% and 30\% of the whole data, respectively. The train and test datasets respectively have 921 and 408 observatinos with 20 variables.
 
 
-```{r test&cv&train, echo = FALSE}
+```{r test&train, echo = FALSE}
 set.seed(798102) 
 split <- sample (2, nrow (df), replace= TRUE, prob = c (0.7, 0.3))
 train <- df [split==1,]
 test <- df [split==2,]
 ```
 
+\newpage
+##Correlation Matrix
 
-At the very first step, because of importance, the correlation matrix for the predictors were plotted to have a better understatnding about this dataset.Since in fitting the logistic regression or regression model, existing any collinearity between predictors lead to poor fitting.
+At the very first step, because of the importance and to get a better understanding of the dataset, correlation matrix for the predictors is plotted. 
+The dark blue color between not-identical variables shown in Figure 1, demonstrates some non-negligible input feature correlations. 
 
-```{r Correlation Matrix, echo=FALSE,fig.caption="Correlation Matrix"}
-correlationMatrix<- cor(train[,-1])
+```{r Correlation Matrix, echo=FALSE,fig.align='center', fig.cap="Correlation Matrix"}
+correlationMatrix<- cor(train[,])
 #Figure 1
 corrplot(correlationMatrix, type="lower")
 ```
 
+The distribution and scatterplot matrix has been added to have a better understanding of the correlation between the features.
 
-```{r Scatter-CORRELATION-PLOT2, echo=FALSE, results = "asis", fig.width=20, fig.height=19, fig.cap = ",,,,,,"}
+```{r Scatter-CORRELATION-PLOT2, echo=FALSE, fig.width=22, fig.height=22, fig.cap = "Scatterplot matrix for predictors"}
 #Figure 2
-#ggpairs(df, aes(color=factor(TARGET_5Yrs), alpha=0.75), lower=list(continuous="smooth"))+ 
-#  theme_bw()+
-#  labs(title=".......")+
-#  theme(plot.title=element_text(face='bold',color='black',hjust=0.5,size=12))
+ggpairs(df, aes(color=factor(TARGET_5Yrs), alpha=0.75), lower=list(continuous="smooth"))+ 
+  theme_bw()+
+ labs(title="feature scatterplot")+
+  theme(plot.title=element_text(face='bold',color='black',hjust=0.5,size=12))
 ```
 
-## Use caret for training machine learning models
+## Regarding the correlated features
+
+As illustrated in correlation and scatterplot matrices, some features are very correlated with each other. Different methods exist for omitting the collinearity, e.g. removing the set of correlated features and just keeping those more correlated with outcome or removing the features with lower variances. In this project the **caret** package has been used to find the best trained model based on automated training package in R.
+
+\newpage
+##Fitting simple logistics regression model:
+
+A simple logistic regression model with all inputs is fitted to the dataset, the summary of the fit, deviance, residual deviance and Chi-squared test analysis are shown in Table 2. As illustrated in Table 2, many features with high Pr(>Chi) are insignificant predictors.
+
+
+```{r Logistic model, echo=FALSE}
+LogFit <- glm(TARGET_5Yrs ~  GP+ MIN+ PTS+ FGM+ FGA+ FG.+X3P.Made+ X3PA+ X3P.+FTM+ FTA+ FT.+OREB +DREB +REB+ AST+ STL+ BLK+ TOV , data=train, family=binomial(link='logit'))
+
+#compute pseudo-R squared
+DMLE <- LogFit$deviance
+DNULL <- LogFit$null.deviance
+n <- nrow(train)
+Rsq <- (1-exp((DMLE-DNULL)/n)) / (1-exp(-DNULL/n))
+#mis-classification rate
+yH <- ifelse(predict(LogFit, type="response") < 0.5, "0", "1") 
+eta <- mean(yH!=train$TARGET_5Yrs)
+#
+```
+
+
+```{r LogFit summary-Chisq, echo=FALSE, results='asis' , header = FALSE, fig.align='center'}
+#Table 2
+print(xtable(anova(LogFit, test="Chisq"), 
+      caption="summary of logistic regression fit with all inputs"), 
+      type="latex", caption.placement="top")
+```
+
+Pseudo-R squared and mis-classification rate are also computed for the logistic fit, demonstrated in Table 3.
+
+```{r LogFit accuracy, echo=FALSE, echo=FALSE, results='asis' , header = FALSE}
+rsqr <-round(100*Rsq,1)
+eta  <-eta
+accur <- round(100*(1-eta),1)
+
+co <- data.frame( Parametrs=c("R-squared", " eta", "accuracy" ) , Values=c( rsqr, eta, accur))
+stargazer(t(co), type="latex" , header= FALSE, title= "simple logistic model accuracy for train dataset")
+```
+\newpage
+## Using  **caret** for Training Machine Learning Models
+
+The **caret** package in R, is a complete package used to train different machine learning algorithms. For applying the training procedure a trainControl(), cross validation method, shall be defined. The train cotrol for this project has been set on "bootstrap"  with 25 as the number, the default setting in R, with TRUE probability class. Although there is a chance that bootstrap method gives underfit results in some cases, this becomes negligible when the observations are large enough. Since there are 1329 observations with 19 predictors in this project, the chance of underfit results can be neglected.
 
 ##Use GLM to fit the model
+The first model trained in this project is GLM method, applied on the train test by using the **caret::train()** function.
 
-```{r caret initialization}
+```{r caret initialization, echo=FALSE}
 #caret default
 caretControl <- trainControl(method = "boot",number = 25, classProbs =  TRUE)
 ```
 
+```{r level adjustment, echo=FALSE}
 
-```{r}
-library(plyr)
 train$TARGET_5Yrs <- revalue(as.factor(train$TARGET_5Yrs), c("0"="zero", "1"="one"))
 test$TARGET_5Yrs <- revalue(as.factor(test$TARGET_5Yrs), c("0"="zero", "1"="one"))
 #mapvalues(train$TARGET_5Yrs, from = c("0", "1"), to = c("zero", "one"))
-levels(as.factor(train$TARGET_5Yrs))
-levels(as.factor(test$TARGET_5Yrs))
+
 ```
 
-
-
-```{r trian GLM}
+```{r trian GLM, echo=FALSE, results='asis' , header = FALSE}
 set.seed(3233)
 modelGLM <- train(as.factor(TARGET_5Yrs)~., data = train, method = "glm",
                  trControl=caretControl)
-summary(modelGLM)
 modelGLM
+
+```
+over the train dataset. The fit coefficients are showin in Table 5.
+```{r modelGlM summary, echo = FALSE, results='asis' , header = FALSE}
+#table5
+print(xtable(summary(modelGLM), 
+      caption="Trained GLM with all inputs-bootstrap"), 
+      type="latex", caption.placement="top")
 ```
 
+Based on the summary of the GLM model over all inputs, the features of PTS, FGM, FGA, X3P.,FTM, FTA,FT.,OREB, DRE, REB, STL and TOV, are shown insignificant.  
+Considering the consideration of insignificant features in this model the next investigated model is the AIC model to check the chance of feature removal.
 
-```{r GLM Confusion Matrix}
+The confusion matrix for GLM model is also represented in following table, Table 6. For the test dataset the accuracy is 65.93\% and kappa value is 27.43\%
+
+```{r GLM Confusion Matrix, echo=FALSE, results='asis' , header = FALSE }
 #turn probabilities into classess and look at their frequencies:
+#Table 6
 p_modelGLM <- predict(modelGLM, test, type="prob")
 p_ClassGLM <- predict(modelGLM, test)
-confusionMatrix(p_ClassGLM, factor(test$TARGET_5Yrs))
+out<- table(p_ClassGLM, factor(test$TARGET_5Yrs))
+outx <- xtable(out, caption="GLM Confusion Matrix")
+print(outx, caption.placement="top")
+#confusionMatrix(p_ClassGLM, factor(test$TARGET_5Yrs))
 ```
 
+\newpage
 
-##Use AIC
+##Using glmStepAIC to fit the model.
 
 
-```{r AIC}
+```{r AIC, echo=FALSE, warning=FALSE,include=FALSE}
 set.seed(3233)
 modelAIC <- train(factor(TARGET_5Yrs)~., data = train, method = "glmStepAIC",
                  trControl=caretControl)
 #summary(modelAIC)
-#modelAIC
+modelAIC
 ```
 
+over train data set. As it is illustrated in the trained AIC model summary table, Table 7. All the final features, the intercept, GP, MIN, FGA, X3P.Made, X3PA, FT., DREB, REB,AST and BLK are in the 95\% significance interval.  
 
-```{r AIC confusion}
+```{r modelAIC summary, echo = FALSE, results='asis' , header = FALSE}
+#table7
+print(xtable(summary(modelAIC), 
+      caption="Fit coefficients for trained AIC-bootstrap"), 
+      type="latex", caption.placement="top")
+```
+
+```{r AIC confusion, echo=FALSE, warning=FALSE, results='asis' , header = FALSE}
 #turn probabilities into classess and look at their frequencies:
+#Table 8
 p_modelAIC <- predict(modelAIC, test, type = "prob")
 p_ClassAIC <- predict(modelGLM, test)
-confusionMatrix(p_ClassAIC, factor(test$TARGET_5Yrs))
+out2<- table(p_ClassAIC, factor(test$TARGET_5Yrs))
+outx2 <- xtable(out2, caption="AIC Confusion Matrix")
+print(outx, caption.placement="top")
+#confusionMatrix(p_ClassAIC, factor(test$TARGET_5Yrs))
 ```
 
+Confusion Matrix for AIC model, Table 8, shows 65.93\% accuracy for the test dataset with 27.43\% kappa. 
 
-##SVM
-##SVMLinear
-```{r trian SVM Linear}
+\newpage
+
+##Support Vector Machine method
+
+In this section svm model is used combined with **caret::train** function. since there exist a chnce of linear decision boundary for our dataset we consider SVM fit with both linear and radial kernels and investigate the results. 
+
+##SVM with Linear kernel
+Linear kernel is considered for svm fit with R's default train control method, boostrap and TRUE probability and scaling. Scaling is an important factor in SVM since normalization of variables leads to much uniform and stable computations.
+```{r modelSVM Linear, warning=FALSE,echo=FALSE}
 set.seed(3233)
 modelSVMLinear <- train(factor(TARGET_5Yrs)~., data = train, method = "svmLinear",
-                 trControl=caretControl, Probs =  TRUE)
-summary(modelSVMLinear)
+                 trControl=caretControl, Scale =  TRUE)
 modelSVMLinear
 ```
 
 
-```{r}
+
+As mentioned the accuracy with linear kernel in SVM fit, over the trained set is 71.25\% with kappa 35.36\%. Confusion matrix for the model also shows the accuracy of 66.91\% for test data set with kappa 28.31\%.
+```{r confusion Matrix SVMLinear, echo=FALSE, results='asis' , header = FALSE}
+#Table 9
 p_modelSVMLinear <- predict(modelSVMLinear, test, "prob")
 p_ClassSVMLinear <- predict(modelSVMLinear, test)
-confusionMatrix(p_ClassSVMLinear, factor(test$TARGET_5Yrs))
+out3<- table(p_ClassSVMLinear, factor(test$TARGET_5Yrs))
+outx3 <- xtable(out3, caption="SVM with linear kernel Confusion Matrix")
+print(outx3, caption.placement="top")
+#confusionMatrix(p_ClassSVMLinear, factor(test$TARGET_5Yrs))
 ```
+\newpage
 
+##SVM with radial kernel:
 
-```{r trian SVM Radial}
+The default and usual kernel for SVM fit is the gaussian or radial kernel. SVM fit with radial kernel is also investigate din this project. 
+```{r trian SVM Radial, echo=FALSE}
 set.seed(3233)
 modelSVMRadial <- train(factor(TARGET_5Yrs)~., data = train, method = "svmRadial",
-                 trControl=caretControl)
+                 trControl=caretControl, Scale = TRUE)
 summary(modelSVMRadial)
 modelSVMRadial
 ```
 
-```{r}
+The model gives accuracy of 71.39\% with kappa 35.79\% for train test. The tunning features, sigma and cost based on the mentioned settings were set on 0.065 and 0.25, respectively. 
+Creating the confusion matrix for the test set, gives 66.67\% accuracy with kappa 26.29\%. 
+```{r confusion Matrix SVRadial, echo=FALSE, results='asis' , header = FALSE}
+#Table 10
 p_modelSVMRadial <- predict(modelSVMRadial, test, "prob")
-p_ClasslSVMRadial <- predict(modelSVMRadial, test)
-confusionMatrix(p_ClasslSVMRadial, factor(test$TARGET_5Yrs))
+p_ClassSVMRadial <- predict(modelSVMRadial, test)
+out4 <- table(p_ClassSVMRadial, factor(test$TARGET_5Yrs))
+outx4 <- xtable(out4, caption="SVM with radial kernel Confusion Matrix")
+print(outx4, caption.placement="top")
+#confusionMatrix(p_ClasslSVMRadial, factor(test$TARGET_5Yrs))
 ```
+\newpage
 
+## Comparison between the different trained models:
 
-```{r COMPARISON GLM, AIC, SVMlinear and SVMradial}
+The comparison is made between the trained GLM, AIC, SVM with linear kernel and SVM with radial kernel fits, by using **resample()** function in R. The summary of the comparison is illustrated as following.
+
+```{r COMPARISON GLM, AIC, SVMlinear and SVMradial, echo=FALSE}
+library(resample)
 comparison<-resamples(list(GLM=modelGLM, AIC=modelAIC, SVMLinear=modelSVMLinear, SVMRadial=modelSVMRadial))
 summary(comparison)
 ```
 
-```{r ROC for GLM}
-ROC_GLM <- roc(factor(test$TARGET_5Yrs)~p_modelGLM[,2], plot = TRUE, print.auc = TRUE,main="ROC for GLM")
+
+## ROC for the different fitted models
+As another evaluation method for finding the best fit, the ROC curve has been drawn for all the fitted models in this project and the AUC values are calculated for each fit. AUC value which is the area under the ROC curve, can be interpreted as the probability that a random chosen instance from Y=1 population will have a higher score than a randomly chosen instance from Y=0 population. This parameter provides a measure for investigating the goodness of prediction.
+
+First we have the simple logistic model with full features, it has AUC value of 0.732. The ROC for simple logistic curve is shown in Figure 3.
+
+```{r ROC for Logistic fit, echo=FALSE,  results='asis' , header = FALSE, fig.align='center', fig.cap="ROC for simple Logistic Fit"}
+#Figure 3
+p_LogFit<- predict(LogFit,test,type="response")
+test_roc = roc(test$TARGET_5Yrs~p_LogFit, plot = TRUE, print.auc = TRUE)
+```
+
+ROC for the GLM model trained by caret package, illustrated in Figure 4, presents similar AUC value to the simple logistic regression fit, meaning that the two models can be considered equal.
+```{r ROC for GLM, echo=FALSE, results='asis' , header = FALSE, fig.align='center', fig.cap="ROC for GLM"}
+#Figure 4
+ROC_GLM <- roc(factor(test$TARGET_5Yrs)~p_modelGLM[,2], plot = TRUE, print.auc = TRUE)
+```
+
+ROC for the fit with AIC model, differs in AUC value, Figure 5 shows AUC=0.738 for this model. A slightly better prediction for the test detaset.
+```{r ROC for AIC, echo=FALSE, results='asis' , header = FALSE, fig.align='center', fig.cap="ROC for AIC"}
+ROC_AIC <- roc(factor(test$TARGET_5Yrs)~p_modelAIC[,2], plot = TRUE, print.auc = TRUE)
 ```
 
 
-```{r ROC for AIC}
-ROC_AIC <- roc(factor(test$TARGET_5Yrs)~p_modelAIC[,2], plot = TRUE, print.auc = TRUE,main="ROC for AIC")
+By applying the SVM model with linear kernel the area under the curve has improved to AUC=0.742, illustrated in Figure 6.
+
+```{r ROC for SVMlinear, echo=FALSE, results='asis' , header = FALSE, fig.align='center', fig.cap="ROC for SVM with linear kernel"}
+#Figure 6
+ROC_SVMlinear<- roc(factor(test$TARGET_5Yrs)~p_modelSVMLinear[,2], plot = TRUE, print.auc = TRUE)
+```
+And finally the SVM model with radial fit has AUC=0.718 over the test dataset, which is lower than the SVM model with linear kernel.
+
+```{r ROC for SVMRadial , echo=FALSE, results='asis' , header = FALSE, fig.align='center', fig.cap="ROC for SVM with radial kernel"}
+#fig7
+ROC_SVMRadial<- roc(factor(test$TARGET_5Yrs)~p_modelSVMRadial[,2], plot = TRUE, print.auc = TRUE)
 ```
 
+Comparing the ROC curves and more specificly the AUC values, it is conculed that SVM fit with linear kernel is the best model among other analyzed fits which has AUC value of 74.2 \%.
 
-```{r ROC for SVMlinear}
-ROC_SVMlinear<- roc(factor(test$TARGET_5Yrs)~p_modelSVMLinear[,2], plot = TRUE, print.auc = TRUE, main="ROC for SVM withlinear kernel")
-```
-```{r ROC for SVMRadial}
-ROC_SVMRadial<- roc(factor(test$TARGET_5Yrs)~p_modelSVMRadial[,2], plot = TRUE, print.auc = TRUE, main="ROC for SVM with radial kernel")
-```
+\newpage
+
+##Conculsion:
+
+The career longevity of NBA players, with respect to their athletic performance is provided in the analyzed dataset for this project. The outcome is a binary classification based on the years each player stayed in the league >= or < than 5 years. There were 1340 observations and 21 variables. The dataset has been splitted into two "train" and "test" separate dataset. 
+
+The Caret packge in R has been used over the train dataset for training the machine learning algorithms. The boostrap method has been used to control the training with 4 different methods of GLM, glmStepAIC, SVM with linear kernel and SVM with radial Kernel, creating different fits. The accuracy and kappa value are analyzed for all the fitted models. 
+The best fits from the different mentioned training methods were then compared with each other, regarding the best prediction over the test dataset. The comparison has been made with resample() function from caret package in R and the ROC curves.
+The results show that the best fit among the investigated methods with bootstrap process, is SVM with linear kernel, with AUC value of 74.2\%.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
