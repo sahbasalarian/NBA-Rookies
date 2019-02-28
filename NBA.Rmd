@@ -1,5 +1,5 @@
 ---
-title: "NBA"
+title: "NBA Career Longevity"
 author: "Sahba Salarian"
 date: "Feb. 2019"
 output: pdf_document
@@ -36,7 +36,7 @@ library(ROCR)
 
 The National Basketball Association (NBA) is a men's professional basketball league in North America. It is composed of 30 teams among which 29 teams are in the United States and 1 team in Canada. It is widely considered to be the premier men's professional basketball league in the world. 
 
-The NBA is considered one of the four major professional sports leagues in the United States and Canada. The NBA players are the world's best paid athletes by average annual salary per player, among which are Michael Jordan, Kobe Bryant, LeBron James, Kareem Abdul-Jabbar, etc. Considering the huge prevelage gained by these athletes, it is an interesting project to invetigate the career longevity of NBA players in the league based on their athlectic performance in the field. 
+The NBA is considered one of the four major professional sports leagues in the United States and Canada. NBA players are the world's best paid athletes by average annual salary per player, among which have been Michael Jordan, Kobe Bryant, LeBron James, Kareem Abdul-Jabbar, etc. Considering the huge prevelage gained by these athletes, it is an interesting analysis to invetigate the career longevity of NBA players in the league based on their athlectic performance in the field. 
 
 In this project, the player's career length is devided into two categories of more or less than 5 years, associated with output values of 1 or 0, respectively. 
 
@@ -107,13 +107,17 @@ df <- df[,2:21]
 ```
 
 
-```{r trimmed data , echo = TRUE}
-str(df)
+```{r trimmed data , echo = FALSE}
+#str(df)
 ```
 ##Train \& Test Split:
 
 Just because a learning algorithm fits a data set well, does not guarantee that it is a good hypothesis. It could overfit and as a result the predictions on the other data set would be poor. The error of hypothesis as measured on the data set with which we trained the parameters will usually be lower than the errors on any other data set. So for the sake of better evaluation of the model and better prediction analysis the data set is randomly splitted into two separate datasets of "train" and "test", with 70\% and 30\% of the whole data, respectively. The train and test datasets respectively have 921 and 408 observatinos with 20 variables.
 
+```{r initialize, echo=FALSE}
+ETA <- numeric(4)
+CI <- matrix(numeric(4*2), nrow=4, ncol=2)
+```
 
 ```{r test&train, echo = FALSE}
 set.seed(798102) 
@@ -122,7 +126,6 @@ train <- df [split==1,]
 test <- df [split==2,]
 ```
 
-\newpage
 ##Correlation Matrix
 
 At the very first step, because of the importance and to get a better understanding of the dataset, correlation matrix for the predictors is plotted. 
@@ -133,7 +136,6 @@ correlationMatrix<- cor(train[,])
 #Figure 1
 corrplot(correlationMatrix, type="lower")
 ```
-
 The distribution and scatterplot matrix has been added to have a better understanding of the correlation between the features.
 
 ```{r Scatter-CORRELATION-PLOT2, echo=FALSE, fig.width=22, fig.height=22, fig.cap = "Scatterplot matrix for predictors"}
@@ -148,7 +150,7 @@ ggpairs(df, aes(color=factor(TARGET_5Yrs), alpha=0.75), lower=list(continuous="s
 
 As illustrated in correlation and scatterplot matrices, some features are very correlated with each other. Different methods exist for omitting the collinearity, e.g. removing the set of correlated features and just keeping those more correlated with outcome or removing the features with lower variances. In this project the **caret** package has been used to find the best trained model based on automated training package in R.
 
-\newpage
+
 ##Fitting simple logistics regression model:
 
 A simple logistic regression model with all inputs is fitted to the dataset, the summary of the fit, deviance, residual deviance and Chi-squared test analysis are shown in Table 2. As illustrated in Table 2, many features with high Pr(>Chi) are insignificant predictors.
@@ -162,10 +164,14 @@ DMLE <- LogFit$deviance
 DNULL <- LogFit$null.deviance
 n <- nrow(train)
 Rsq <- (1-exp((DMLE-DNULL)/n)) / (1-exp(-DNULL/n))
-#mis-classification rate
 yH <- ifelse(predict(LogFit, type="response") < 0.5, "0", "1") 
-eta <- mean(yH!=train$TARGET_5Yrs)
-#
+yTe <- factor(test$TARGET_5Yrs)
+eta <- mean(yTe!=yH) 
+#comparisons
+MOE <- 1.96*sqrt(eta*(1-eta)/length(yH))
+CI[1,] <- round(100*(eta+c(-1,1)*MOE), 2)
+ETA[1] <- eta
+
 ```
 
 
@@ -182,7 +188,7 @@ Pseudo-R squared and mis-classification rate are also computed for the logistic 
 rsqr <-round(100*Rsq,1)
 eta  <-eta
 accur <- round(100*(1-eta),1)
-
+#Table3
 co <- data.frame( Parametrs=c("R-squared", " eta", "accuracy" ) , Values=c( rsqr, eta, accur))
 stargazer(t(co), type="latex" , header= FALSE, title= "simple logistic model accuracy for train dataset")
 ```
@@ -214,9 +220,9 @@ modelGLM <- train(as.factor(TARGET_5Yrs)~., data = train, method = "glm",
 modelGLM
 
 ```
-over the train dataset. The fit coefficients are showin in Table 5.
+over the train dataset. The fit coefficients are showin in Table 4.
 ```{r modelGlM summary, echo = FALSE, results='asis' , header = FALSE}
-#table5
+#table4
 print(xtable(summary(modelGLM), 
       caption="Trained GLM with all inputs-bootstrap"), 
       type="latex", caption.placement="top")
@@ -225,20 +231,32 @@ print(xtable(summary(modelGLM),
 Based on the summary of the GLM model over all inputs, the features of PTS, FGM, FGA, X3P.,FTM, FTA,FT.,OREB, DRE, REB, STL and TOV, are shown insignificant.  
 Considering the consideration of insignificant features in this model the next investigated model is the AIC model to check the chance of feature removal.
 
-The confusion matrix for GLM model is also represented in following table, Table 6. For the test dataset the accuracy is 65.93\% and kappa value is 27.43\%
+Over the train dataset, based on the confusion matrix, Table 5, the Accuracy for Caret/GLM model is 0.7372 with Kappa 0.4129.
 
-```{r GLM Confusion Matrix, echo=FALSE, results='asis' , header = FALSE }
+```{r GLM Confusion Matrix-Train, echo=FALSE, results='asis' , header = FALSE }
 #turn probabilities into classess and look at their frequencies:
-#Table 6
-p_modelGLM <- predict(modelGLM, test, type="prob")
-p_ClassGLM <- predict(modelGLM, test)
-out<- table(p_ClassGLM, factor(test$TARGET_5Yrs))
-outx <- xtable(out, caption="GLM Confusion Matrix")
-print(outx, caption.placement="top")
-#confusionMatrix(p_ClassGLM, factor(test$TARGET_5Yrs))
+#Table 5- confusion, train
+p_modelGLM_train <- predict(modelGLM, train, type="prob")
+p_ClassGLM_train <- predict(modelGLM, train)
+out0<- table(p_ClassGLM_train, factor(train$TARGET_5Yrs))
+outx0 <- xtable(out0, caption="GLM Confusion Matrix-train")
+print(outx0, caption.placement="top")
+#confusionMatrix(p_ClassGLM_train, factor(train$TARGET_5Yrs))
 ```
 
-\newpage
+The confusion matrix for GLM model for the test datset is also presented in following table, Table 6. For the test dataset the accuracy is 65.93\% and kappa value is 27.43\%
+
+```{r GLM Confusion Matrix-test, echo=FALSE, results='asis' , header = FALSE }
+#turn probabilities into classess and look at their frequencies:
+#Table 6
+p_modelGLM_test <- predict(modelGLM, test, type="prob")
+p_ClassGLM_test <- predict(modelGLM, test)
+out1<- table(p_ClassGLM_test, factor(test$TARGET_5Yrs))
+outx1 <- xtable(out1, caption="GLM Confusion Matrix-test")
+print(outx1, caption.placement="top")
+#confusionMatrix(p_ClassGLM_test, factor(test$TARGET_5Yrs))
+```
+
 
 ##Using glmStepAIC to fit the model.
 
@@ -251,7 +269,7 @@ modelAIC <- train(factor(TARGET_5Yrs)~., data = train, method = "glmStepAIC",
 modelAIC
 ```
 
-over train data set. As it is illustrated in the trained AIC model summary table, Table 7. All the final features, the intercept, GP, MIN, FGA, X3P.Made, X3PA, FT., DREB, REB,AST and BLK are in the 95\% significance interval.  
+As it is illustrated in the trained AIC model summary table, Table 7. All the final features, the intercept, GP, MIN, FGA, X3P.Made, X3PA, FT., DREB, REB,AST and BLK are in the 95\% significance interval.  
 
 ```{r modelAIC summary, echo = FALSE, results='asis' , header = FALSE}
 #table7
@@ -259,19 +277,41 @@ print(xtable(summary(modelAIC),
       caption="Fit coefficients for trained AIC-bootstrap"), 
       type="latex", caption.placement="top")
 ```
+Based on the confusion matrix for train dataset, Table 8, the Caret/AIC model has accuracy of 0.7372 and  Kappa value of 0.4122. 
 
-```{r AIC confusion, echo=FALSE, warning=FALSE, results='asis' , header = FALSE}
-#turn probabilities into classess and look at their frequencies:
-#Table 8
-p_modelAIC <- predict(modelAIC, test, type = "prob")
-p_ClassAIC <- predict(modelGLM, test)
-out2<- table(p_ClassAIC, factor(test$TARGET_5Yrs))
-outx2 <- xtable(out2, caption="AIC Confusion Matrix")
-print(outx, caption.placement="top")
-#confusionMatrix(p_ClassAIC, factor(test$TARGET_5Yrs))
+
+```{r, echo=FALSE}
+#str(modelAIC)
 ```
 
-Confusion Matrix for AIC model, Table 8, shows 65.93\% accuracy for the test dataset with 27.43\% kappa. 
+
+```{r AIC Confusion Matrix-Train, echo=FALSE, results='asis' , header = FALSE }
+#turn probabilities into classess and look at their frequencies:
+#Table 8- confusion, train
+p_modelAIC_train <- predict(modelAIC, train, type="prob")
+p_ClassAIC_train <- predict(modelAIC, train)
+out2<- table(p_ClassAIC_train, factor(train$TARGET_5Yrs))
+outx2 <- xtable(out2, caption="AIC Confusion Matrix-train")
+print(outx2, caption.placement="top")
+#confusionMatrix(p_ClassAIC_train, factor(train$TARGET_5Yrs))
+```
+
+
+Confusion Matrix for AIC model, Table 9, shows 65.93\% accuracy for the test dataset with 27.43\% kappa. 
+
+
+```{r AIC confusion-test, echo=FALSE, warning=FALSE, results='asis' , header = FALSE}
+#turn probabilities into classess and look at their frequencies:
+#Table 9
+p_modelAIC_test <- predict(modelAIC, test, type = "prob")
+p_ClassAIC_test<- predict(modelAIC, test)
+out3<- table(p_ClassAIC_test, factor(test$TARGET_5Yrs))
+outx3 <- xtable(out3, caption="AIC Confusion Matrix-test")
+print(outx3, caption.placement="top")
+#confusionMatrix(p_ClassAIC_test, factor(test$TARGET_5Yrs))
+```
+
+
 
 \newpage
 
@@ -288,17 +328,27 @@ modelSVMLinear <- train(factor(TARGET_5Yrs)~., data = train, method = "svmLinear
 modelSVMLinear
 ```
 
+As mentioned the accuracy with linear kernel in SVM fit, over the trained set is 71.25\% with kappa 35.36\%. Confusion matrix for the model over the train dataset, Table 10, shows accuracy 0.7351 and kappa Kappa of 0.3989. 
 
+```{r confusion Matrix SVMLinear-train, echo=FALSE, results='asis' , header = FALSE}
+#Table 10
+p_modelSVMLinear_train <- predict(modelSVMLinear, train, "prob")
+p_ClassSVMLinear_train <- predict(modelSVMLinear, train)
+out4<- table(p_ClassSVMLinear_train, factor(train$TARGET_5Yrs))
+outx4 <- xtable(out4, caption="SVM with linear kernel Confusion Matrix-train")
+print(outx4, caption.placement="top")
+#confusionMatrix(p_ClassSVMLinear_train, factor(train$TARGET_5Yrs))
+```
 
-As mentioned the accuracy with linear kernel in SVM fit, over the trained set is 71.25\% with kappa 35.36\%. Confusion matrix for the model also shows the accuracy of 66.91\% for test data set with kappa 28.31\%.
-```{r confusion Matrix SVMLinear, echo=FALSE, results='asis' , header = FALSE}
-#Table 9
-p_modelSVMLinear <- predict(modelSVMLinear, test, "prob")
-p_ClassSVMLinear <- predict(modelSVMLinear, test)
-out3<- table(p_ClassSVMLinear, factor(test$TARGET_5Yrs))
-outx3 <- xtable(out3, caption="SVM with linear kernel Confusion Matrix")
-print(outx3, caption.placement="top")
-#confusionMatrix(p_ClassSVMLinear, factor(test$TARGET_5Yrs))
+Also, the condusion matrix in Table 11, shows accuracy of 66.91\% for test data set with kappa 28.31\%.
+```{r confusion Matrix SVMLinear-test, echo=FALSE, results='asis' , header = FALSE}
+#Table 11
+p_modelSVMLinear_test <- predict(modelSVMLinear, test, "prob")
+p_ClassSVMLinear_test <- predict(modelSVMLinear, test)
+out5<- table(p_ClassSVMLinear_test, factor(test$TARGET_5Yrs))
+outx5 <- xtable(out5, caption="SVM with linear kernel Confusion Matrix-test")
+print(outx5, caption.placement="top")
+#confusionMatrix(p_ClassSVMLinear_test, factor(test$TARGET_5Yrs))
 ```
 \newpage
 
@@ -313,17 +363,30 @@ summary(modelSVMRadial)
 modelSVMRadial
 ```
 
-The model gives accuracy of 71.39\% with kappa 35.79\% for train test. The tunning features, sigma and cost based on the mentioned settings were set on 0.065 and 0.25, respectively. 
-Creating the confusion matrix for the test set, gives 66.67\% accuracy with kappa 26.29\%. 
-```{r confusion Matrix SVRadial, echo=FALSE, results='asis' , header = FALSE}
-#Table 10
-p_modelSVMRadial <- predict(modelSVMRadial, test, "prob")
-p_ClassSVMRadial <- predict(modelSVMRadial, test)
-out4 <- table(p_ClassSVMRadial, factor(test$TARGET_5Yrs))
-outx4 <- xtable(out4, caption="SVM with radial kernel Confusion Matrix")
-print(outx4, caption.placement="top")
-#confusionMatrix(p_ClasslSVMRadial, factor(test$TARGET_5Yrs))
+The model gives accuracy of 71.39\% with kappa 35.79\% for train test. The tunning features, sigma and cost based on the mentioned settings were set on 0.065 and 0.25, respectively. Confusion matrix of the train set illustrated in Table 12, gives accuracy of 0.7362 and Kappa of 0.3932.   
+
+```{r confusion Matrix SVRadial-train, echo=FALSE, results='asis' , header = FALSE}
+#Table 12
+p_modelSVMRadial_train <- predict(modelSVMRadial, train, "prob")
+p_ClassSVMRadial_train <- predict(modelSVMRadial, train)
+out6 <- table(p_ClassSVMRadial_train, factor(train$TARGET_5Yrs))
+outx6 <- xtable(out6, caption="SVM with radial kernel Confusion Matrix-train")
+print(outx6, caption.placement="top")
+#confusionMatrix(p_ClassSVMRadial_train, factor(train$TARGET_5Yrs))
 ```
+
+Confusion matrix for the test set, Table 13, gives 66.67\% accuracy with kappa 26.29\% for SVM with radial kernel.
+
+```{r confusion Matrix SVRadial-test, echo=FALSE, results='asis' , header = FALSE}
+#Table 13
+p_modelSVMRadial_test <- predict(modelSVMRadial, test, "prob")
+p_ClassSVMRadial_test <- predict(modelSVMRadial, test)
+out7 <- table(p_ClassSVMRadial_test, factor(test$TARGET_5Yrs))
+outx7 <- xtable(out7, caption="SVM with radial kernel Confusion Matrix-test")
+print(outx7, caption.placement="top")
+#confusionMatrix(p_ClassSVMRadial_test, factor(test$TARGET_5Yrs))
+```
+
 \newpage
 
 ## Comparison between the different trained models:
@@ -351,12 +414,13 @@ test_roc = roc(test$TARGET_5Yrs~p_LogFit, plot = TRUE, print.auc = TRUE)
 ROC for the GLM model trained by caret package, illustrated in Figure 4, presents similar AUC value to the simple logistic regression fit, meaning that the two models can be considered equal.
 ```{r ROC for GLM, echo=FALSE, results='asis' , header = FALSE, fig.align='center', fig.cap="ROC for GLM"}
 #Figure 4
-ROC_GLM <- roc(factor(test$TARGET_5Yrs)~p_modelGLM[,2], plot = TRUE, print.auc = TRUE)
+ROC_GLM <- roc(factor(test$TARGET_5Yrs)~p_modelGLM_test[,2], plot = TRUE, print.auc = TRUE)
 ```
 
 ROC for the fit with AIC model, differs in AUC value, Figure 5 shows AUC=0.738 for this model. A slightly better prediction for the test detaset.
 ```{r ROC for AIC, echo=FALSE, results='asis' , header = FALSE, fig.align='center', fig.cap="ROC for AIC"}
-ROC_AIC <- roc(factor(test$TARGET_5Yrs)~p_modelAIC[,2], plot = TRUE, print.auc = TRUE)
+#Figure 5
+ROC_AIC <- roc(factor(test$TARGET_5Yrs)~p_modelAIC_test[,2], plot = TRUE, print.auc = TRUE)
 ```
 
 
@@ -364,13 +428,13 @@ By applying the SVM model with linear kernel the area under the curve has improv
 
 ```{r ROC for SVMlinear, echo=FALSE, results='asis' , header = FALSE, fig.align='center', fig.cap="ROC for SVM with linear kernel"}
 #Figure 6
-ROC_SVMlinear<- roc(factor(test$TARGET_5Yrs)~p_modelSVMLinear[,2], plot = TRUE, print.auc = TRUE)
+ROC_SVMlinear<- roc(factor(test$TARGET_5Yrs)~p_modelSVMLinear_test[,2], plot = TRUE, print.auc = TRUE)
 ```
 And finally the SVM model with radial fit has AUC=0.718 over the test dataset, which is lower than the SVM model with linear kernel.
 
 ```{r ROC for SVMRadial , echo=FALSE, results='asis' , header = FALSE, fig.align='center', fig.cap="ROC for SVM with radial kernel"}
 #fig7
-ROC_SVMRadial<- roc(factor(test$TARGET_5Yrs)~p_modelSVMRadial[,2], plot = TRUE, print.auc = TRUE)
+ROC_SVMRadial<- roc(factor(test$TARGET_5Yrs)~p_modelSVMRadial_test[,2], plot = TRUE, print.auc = TRUE)
 ```
 
 Comparing the ROC curves and more specificly the AUC values, it is conculed that SVM fit with linear kernel is the best model among other analyzed fits which has AUC value of 74.2 \%.
@@ -382,8 +446,102 @@ Comparing the ROC curves and more specificly the AUC values, it is conculed that
 The career longevity of NBA players, with respect to their athletic performance is provided in the analyzed dataset for this project. The outcome is a binary classification based on the years each player stayed in the league >= or < than 5 years. There were 1340 observations and 21 variables. The dataset has been splitted into two "train" and "test" separate dataset. 
 
 The Caret packge in R has been used over the train dataset for training the machine learning algorithms. The boostrap method has been used to control the training with 4 different methods of GLM, glmStepAIC, SVM with linear kernel and SVM with radial Kernel, creating different fits. The accuracy and kappa value are analyzed for all the fitted models. 
-The best fits from the different mentioned training methods were then compared with each other, regarding the best prediction over the test dataset. The comparison has been made with resample() function from caret package in R and the ROC curves.
-The results show that the best fit among the investigated methods with bootstrap process, is SVM with linear kernel, with AUC value of 74.2\%.
+The best fits from the different mentioned training methods were then compared with each other, regarding the best prediction over the test dataset. 
+Comparisons are made baced on resample() function from caret package, the confusion matrices for both train and test datasets, ROC curves, missclassification error rates and fit accuracy on training data. 
+The ROC results show that the best fit among the investigated methods with bootstrap process, is SVM with linear kernel, with AUC value of 74.2\%. Based on the accuracy evaluation made with resample() and as illustrated in Figure 8,SVM with radial kernel with slight improvement w.r.t linear kernel, had higher mean accuracy. The level of mis-classification error is also presented in Table 14, and illustrated in Figure 9.
+
+
+```{r ETA_ksvm_radial eta, echo=FALSE, warning=FALSE,include=FALSE}
+ans <- ksvm(factor(TARGET_5Yrs)~.,data=test, kernel="rbfdot", kpar=list(sigma = 0.06461464), C=0.25)
+yH <- predict(ans, newdata=test, type="response")
+eta <- mean(factor(test$TARGET_5Yrs)!=yH)
+MOE <- 1.96*sqrt(eta*(1-eta)/length(yH))
+CI[4,] <- round(100*(eta+c(-1,1)*MOE), 2)
+ETA[4] <- eta
+
+```
+
+
+```{r LINEAR_ksvm, echo=FALSE, warning=FALSE,include=FALSE}
+ans <- ksvm(factor(TARGET_5Yrs)~.,data=test, kernel="vanilladot", C=1)
+yH <- predict(ans, newdata=test, type="response")
+eta <- mean(test$TARGET_5Yrs!=yH)
+MOE <- 1.96*sqrt(eta*(1-eta)/length(yH))
+CI5 <- round(100*(eta+c(-1,1)*MOE), 2)
+CI[3,] <- CI5
+ETA[3] <- eta
+
+```
+
+
+```{r Eta AIC , echo=FALSE, warning=FALSE,include=FALSE}
+DMLE2 <- (modelAIC$finalModel)$deviance
+DNULL2 <- (modelAIC$finalModel)$null.deviance
+n <- nrow(train)
+RSq <- (1-exp((DMLE2-DNULL2)/n)) / (1-exp(-DNULL2/n))
+px <- predict(modelAIC, newdata=test, type="prob")
+yH <- ifelse(px < 0.5, "zero", "one")
+y <- factor(test$TARGET_5Yrs)
+eta <- mean(y!=yH)
+MOE <- 1.96*sqrt(eta*(1-eta)/length(yH))
+CI[2,] <- round(100*(eta+c(-1,1)*MOE), 2)
+ETA[2] <- eta
+```
+
+
+```{r mis-classification table, echo= FALSE, results='asis' , header = FALSE}
+ind <- order(ETA)
+#Table 14
+names(ETA) <- c("logistic", "AIC", "SVM-linear", "SVM-Radial")
+tb <- round(cbind(100*ETA, CI)[ind,],1)
+colnames(tb) <- c("error rate %", "lower", "upper")
+print(xtable(tb, digits=1))
+```
+
+
+
+
+
+```{r COMPARE_Accuracy, results='asis', echo=FALSE, warning=FALSE, fig.align='center'}
+
+#Figure 8
+t <- 1-ETA
+ind <- rev(order(t))
+imp <- unlist(t)[ind]
+var <- names(t)[ind]
+tibble(
+   var = ordered(var, levels=var), 
+   imp = imp,
+   moe = 1.96*sqrt(imp*(1-imp)/nrow(train))
+ ) %>%
+  ggplot(aes(x = var, y = imp)) + 
+  geom_bar(stat = "identity", fill="blue") +
+  geom_errorbar(aes(ymin=imp-moe, ymax=imp+moe),
+                  width=0.5, colour="red", size=2) +
+  ggtitle("Accuracy Comparisons with 95% C.I. Error Bars-train set") +
+  xlab("ML Algorithm") +
+  ylab("Accuracy on Training Data") +
+  coord_flip()
+```
+
+
+
+
+```{r mis-classification illustration, results='asis', echo=FALSE, warning=FALSE, fig.align='center'}
+#Figure 9
+ETA2 <- ETA[ind]
+var <- names(ETA2)
+tibble(
+   var = ordered(var, levels=var), #need ordered for Pareto
+   imp = c(ETA2)
+ ) %>%
+  ggplot(aes(x = var, y = imp)) + 
+  geom_bar(stat = "identity", fill="blue") +
+  ggtitle("Mis-classification Rates") +
+  xlab("Algorithm") +
+  ylab("Error Rate") +
+  coord_flip()
+```
 
 
 
